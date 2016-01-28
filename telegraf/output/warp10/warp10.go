@@ -100,7 +100,7 @@ func (o *Warp) Write(points []*client.Point) error {
   payload := fmt.Sprint(strings.Join(collectString, "\n"))
   //defer connection.Close()
   req, err := http.NewRequest("POST", o.WarpUrl, bytes.NewBufferString(payload))
-  req.Header.Set("X-CityzenData-Token", o.Token)
+  req.Header.Set("X-Warp10-Token", o.Token)
   req.Header.Set("Content-Type", "text/plain")
 
   client := &http.Client{}
