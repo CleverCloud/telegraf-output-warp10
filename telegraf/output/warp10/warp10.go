@@ -30,7 +30,7 @@ import (
   "github.com/influxdb/telegraf/outputs"
 )
 
-type Warp10 struct {
+type Warp struct {
   Prefix string
 
   WarpUrl string
