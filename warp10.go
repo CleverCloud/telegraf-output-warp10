@@ -14,7 +14,7 @@
 //   limitations under the License.
 //
 
-package warp
+package warp10
 
 import (
 	"bytes"
@@ -31,7 +31,7 @@ import (
 	"github.com/influxdata/telegraf/plugins/outputs"
 )
 
-type Warp struct {
+type Warp10 struct {
 	Prefix string
 
 	WarpUrl string
@@ -60,13 +60,13 @@ type MetricLine struct {
 	Tags      string
 }
 
-func (o *Warp) Connect() error {
+func (o *Warp10) Connect() error {
 	// TODO Test Connection to Warp Server
 
 	return nil
 }
 
-func (o *Warp) Write(metrics []telegraf.Metric) error {
+func (o *Warp10) Write(metrics []telegraf.Metric) error {
 	if len(metrics) == 0 {
 		return nil
 	}
@@ -168,21 +168,21 @@ func FloatToString(input_num float64) string {
 	return strconv.FormatFloat(input_num, 'f', 6, 64)
 }
 
-func (o *Warp) SampleConfig() string {
+func (o *Warp10) SampleConfig() string {
 	return sampleConfig
 }
 
-func (o *Warp) Description() string {
+func (o *Warp10) Description() string {
 	return "Configuration for Warp server to send metrics to"
 }
 
-func (o *Warp) Close() error {
+func (o *Warp10) Close() error {
 	// Basically nothing to do for Warp10 here
 	return nil
 }
 
 func init() {
-	outputs.Add("warp", func() telegraf.Output {
-		return &Warp{}
+	outputs.Add("warp10", func() telegraf.Output {
+		return &Warp10{}
 	})
 }
