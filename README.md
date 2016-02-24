@@ -8,17 +8,19 @@ Telegraph plugin to push metrics on Warp10
 
 ### Install ###
 
-* Download telegraph source files (https://github.com/influxdb/telegraf)
+* Git clone telegraph source files (https://github.com/influxdata/telegraf)
+
+WIP new instructions
 
 * Copy directory warp in the output directory (github.com/influxdb/telegraf/outputs)
 
 * do the 'make' command
 
-* Add following instruction in the config file (Output part) 
+* Add following instruction in the config file (Output part)
 
 ```
 [[outputs.warp10]]
-warpUrl = "https://warp1.cityzendata.net/api/v0/update" 
+warpUrl = "https://warp1.cityzendata.net/api/v0/update"
 token = "token"
 prefix = "telegraf."
 debug = false
