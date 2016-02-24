@@ -14,30 +14,31 @@
 //   limitations under the License.
 //
 
-package warp10
+package warp
 
 import (
-  "bytes"
-  "fmt"
-  "net/http"
-  "sort"
-  "strconv"
-  "strings"
-  "time"
-  "io/ioutil"
+	"bytes"
+	"fmt"
+	"io/ioutil"
+	"net/http"
+	"sort"
+	"strconv"
+	"strings"
+	"time"
 
-  "github.com/influxdb/influxdb/client/v2"
-  "github.com/influxdb/telegraf/outputs"
+	"github.com/influxdata/influxdb/client/v2"
+	"github.com/influxdata/telegraf"
+	"github.com/influxdata/telegraf/plugins/outputs"
 )
 
-type Warp10 struct {
-  Prefix string
+type Warp struct {
+	Prefix string
 
-  WarpUrl string
+	WarpUrl string
 
-  Token string
+	Token string
 
-  Debug bool
+	Debug bool
 }
 
 var sampleConfig = `
@@ -53,136 +54,135 @@ var sampleConfig = `
 `
 
 type MetricLine struct {
-  Metric    string
-  Timestamp int64
-  Value     string
-  Tags      string
+	Metric    string
+	Timestamp int64
+	Value     string
+	Tags      string
 }
 
 func (o *Warp) Connect() error {
-  // Test Connection to Warp Server
-  
-  return nil
+	// TODO Test Connection to Warp Server
+
+	return nil
 }
 
-func (o *Warp) Write(points []*client.Point) error {
-  if len(points) == 0 {
-    return nil
-  }
-  var timeNow = time.Now()
-  collectString := make([]string, len(points))  
-  index := 0
-  for _, pt := range points {
-    metric := &MetricLine{
-      Metric:    fmt.Sprintf("%s%s", o.Prefix, pt.Name()),
-      Timestamp: timeNow.Unix() * 1000000,
-    }
+func (o *Warp) Write(metrics []telegraf.Metric) error {
+	if len(metrics) == 0 {
+		return nil
+	}
+	var timeNow = time.Now()
+	collectString := make([]string, len(metrics))
+	index := 0
+	for _, pt := range metrics {
+		metric := &MetricLine{
+			Metric:    fmt.Sprintf("%s%s", o.Prefix, pt.Name()),
+			Timestamp: timeNow.Unix() * 1000000,
+		}
 
-    metricValue, buildError := buildValue(pt)
-    if buildError != nil {
-      fmt.Printf("Warp: %s\n", buildError.Error())
-      continue
-    }
-    metric.Value = metricValue
+		metricValue, buildError := buildValue(pt.Point())
+		if buildError != nil {
+			fmt.Printf("Warp: %s\n", buildError.Error())
+			continue
+		}
+		metric.Value = metricValue
 
-    tagsSlice := buildTags(pt.Tags())
-    metric.Tags = fmt.Sprint(strings.Join(tagsSlice, ","))
+		tagsSlice := buildTags(pt.Tags())
+		metric.Tags = fmt.Sprint(strings.Join(tagsSlice, ","))
 
-    messageLine := fmt.Sprintf("%v// %s{%s} %v \n", metric.Timestamp, metric.Metric, metric.Tags, metric.Value)
-    if o.Debug {
-      fmt.Print(messageLine)
-    }
+		messageLine := fmt.Sprintf("%v// %s{%s} %v \n", metric.Timestamp, metric.Metric, metric.Tags, metric.Value)
+		if o.Debug {
+			fmt.Print(messageLine)
+		}
 
-    collectString[index] = messageLine
-    index += 1
-  }
+		collectString[index] = messageLine
+		index += 1
+	}
+	payload := fmt.Sprint(strings.Join(collectString, "\n"))
+	//defer connection.Close()
+	req, err := http.NewRequest("POST", o.WarpUrl, bytes.NewBufferString(payload))
+	req.Header.Set("X-Warp10-Token", o.Token)
+	req.Header.Set("Content-Type", "text/plain")
 
-  payload := fmt.Sprint(strings.Join(collectString, "\n"))
-  //defer connection.Close()
-  req, err := http.NewRequest("POST", o.WarpUrl, bytes.NewBufferString(payload))
-  req.Header.Set("X-Warp10-Token", o.Token)
-  req.Header.Set("Content-Type", "text/plain")
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	if err != nil {
+		panic(err)
+	}
+	defer resp.Body.Close()
 
-  client := &http.Client{}
-  resp, err := client.Do(req)
-  if err != nil {
-    panic(err)
-  }
-  defer resp.Body.Close()
+	fmt.Println("response Status:", resp.Status)
+	fmt.Println("response Headers:", resp.Header)
+	body, _ := ioutil.ReadAll(resp.Body)
+	fmt.Println("response Body:", string(body))
 
-  fmt.Println("response Status:", resp.Status)
-  fmt.Println("response Headers:", resp.Header)
-  body, _ := ioutil.ReadAll(resp.Body)
-  fmt.Println("response Body:", string(body))
-
-  return nil
+	return nil
 }
 
 func buildTags(ptTags map[string]string) []string {
-  sizeTags :=len(ptTags)
-  sizeTags +=1
-  tags := make([]string, sizeTags)
-  index := 0
-  for k, v := range ptTags {
-    tags[index] = fmt.Sprintf("%s=%s", k, v)
-    index += 1
-  }
-  tags[index] = fmt.Sprintf("source=telegraf")
-  sort.Strings(tags)
-  return tags
+	sizeTags := len(ptTags)
+	sizeTags += 1
+	tags := make([]string, sizeTags)
+	index := 0
+	for k, v := range ptTags {
+		tags[index] = fmt.Sprintf("%s=%s", k, v)
+		index += 1
+	}
+	tags[index] = fmt.Sprintf("source=telegraf")
+	sort.Strings(tags)
+	return tags
 }
 
 func buildValue(pt *client.Point) (string, error) {
-  var retv string
-  var v = pt.Fields()["value"]
-  switch p := v.(type) {
-  case int64:
-    retv = IntToString(int64(p))
-  case string:
-    retv = fmt.Sprintf("'%s'", p)
-  case bool:
-    retv = BoolToString(bool(p))
-  case uint64:
-    retv = UIntToString(uint64(p))
-  case float64:
-    retv = FloatToString(float64(p))
-  default:
-    return retv, fmt.Errorf("unexpected type %T with value %v for Warp", v, v)
-  }
-  return retv, nil
+	var retv string
+	var v = pt.Fields()["value"]
+	switch p := v.(type) {
+	case int64:
+		retv = IntToString(int64(p))
+	case string:
+		retv = fmt.Sprintf("'%s'", p)
+	case bool:
+		retv = BoolToString(bool(p))
+	case uint64:
+		retv = UIntToString(uint64(p))
+	case float64:
+		retv = FloatToString(float64(p))
+	default:
+		return retv, fmt.Errorf("unexpected type %T with value %v for Warp", v, v)
+	}
+	return retv, nil
 }
 
 func IntToString(input_num int64) string {
-  return strconv.FormatInt(input_num, 10)
+	return strconv.FormatInt(input_num, 10)
 }
 
 func BoolToString(input_bool bool) string {
-  return strconv.FormatBool(input_bool)
+	return strconv.FormatBool(input_bool)
 }
 
 func UIntToString(input_num uint64) string {
-  return strconv.FormatUint(input_num, 10)
+	return strconv.FormatUint(input_num, 10)
 }
 
 func FloatToString(input_num float64) string {
-  return strconv.FormatFloat(input_num, 'f', 6, 64)
+	return strconv.FormatFloat(input_num, 'f', 6, 64)
 }
 
 func (o *Warp) SampleConfig() string {
-  return sampleConfig
+	return sampleConfig
 }
 
 func (o *Warp) Description() string {
-  return "Configuration for Warp server to send metrics to"
+	return "Configuration for Warp server to send metrics to"
 }
 
 func (o *Warp) Close() error {
-  return nil
+	// Basically nothing to do for Warp10 here
+	return nil
 }
 
 func init() {
-  outputs.Add("warp", func() outputs.Output {
-    return &Warp{}
-  })
+	outputs.Add("warp", func() telegraf.Output {
+		return &Warp{}
+	})
 }
-
