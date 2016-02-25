@@ -71,31 +71,35 @@ func (o *Warp10) Write(metrics []telegraf.Metric) error {
 		return nil
 	}
 	var timeNow = time.Now()
-	collectString := make([]string, len(metrics))
+	collectString := make([]string, 0)
 	index := 0
-	for _, pt := range metrics {
-		metric := &MetricLine{
-			Metric:    fmt.Sprintf("%s%s", o.Prefix, pt.Name()),
-			Timestamp: timeNow.Unix() * 1000000,
+	for _, mm := range metrics {
+
+		for k, v := range mm.Fields() {
+
+			metric := &MetricLine{
+				Metric:    fmt.Sprintf("%s%s", o.Prefix, mm.Name()+"."+k),
+				Timestamp: timeNow.Unix() * 1000000,
+			}
+
+			metricValue, buildError := buildValueFromValue(v)
+			if buildError != nil {
+				fmt.Printf("Warp: %s\n", buildError.Error())
+				continue
+			}
+			metric.Value = metricValue
+
+			tagsSlice := buildTags(mm.Tags())
+			metric.Tags = fmt.Sprint(strings.Join(tagsSlice, ","))
+
+			messageLine := fmt.Sprintf("%v// %s{%s} %v \n", metric.Timestamp, metric.Metric, metric.Tags, metric.Value)
+			if o.Debug {
+				fmt.Print(messageLine)
+			}
+
+			collectString = append(collectString, messageLine)
+			index += 1
 		}
-
-		metricValue, buildError := buildValue(pt.Point())
-		if buildError != nil {
-			fmt.Printf("Warp: %s\n", buildError.Error())
-			continue
-		}
-		metric.Value = metricValue
-
-		tagsSlice := buildTags(pt.Tags())
-		metric.Tags = fmt.Sprint(strings.Join(tagsSlice, ","))
-
-		messageLine := fmt.Sprintf("%v// %s{%s} %v \n", metric.Timestamp, metric.Metric, metric.Tags, metric.Value)
-		if o.Debug {
-			fmt.Print(messageLine)
-		}
-
-		collectString[index] = messageLine
-		index += 1
 	}
 	payload := fmt.Sprint(strings.Join(collectString, "\n"))
 	//defer connection.Close()
@@ -147,7 +151,29 @@ func buildValue(pt *client.Point) (string, error) {
 	case float64:
 		retv = FloatToString(float64(p))
 	default:
-		return retv, fmt.Errorf("unexpected type %T with value %v for Warp", v, v)
+		retv = fmt.Sprintf("'%s'", p)
+		//		return retv, fmt.Errorf("unexpected type %T with value %v for Warp", v, v)
+	}
+	return retv, nil
+}
+
+func buildValueFromValue(v interface{}) (string, error) {
+	var retv string
+	//	fmt.Println("%v", pt.Fields())
+	switch p := v.(type) {
+	case int64:
+		retv = IntToString(int64(p))
+	case string:
+		retv = fmt.Sprintf("'%s'", p)
+	case bool:
+		retv = BoolToString(bool(p))
+	case uint64:
+		retv = UIntToString(uint64(p))
+	case float64:
+		retv = FloatToString(float64(p))
+	default:
+		retv = fmt.Sprintf("'%s'", p)
+		//		return retv, fmt.Errorf("unexpected type %T with value %v for Warp", v, v)
 	}
 	return retv, nil
 }
