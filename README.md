@@ -12,7 +12,7 @@ Telegraph plugin to push metrics on Warp10
 
 * In the telegraf main dir, add this plugin as git submodule
 ```
-git submodule add -b submodule git@github.com:waxzce/telegraf-output-warp10.git plugins/outputs/warp10
+git submodule add -b submodule git@github.com:cityzendata/telegraf-output-warp10.git plugins/outputs/warp10
 ```
 
 * Add the plugin in the plugin list, you need to add this line to plugins/all/all.go
