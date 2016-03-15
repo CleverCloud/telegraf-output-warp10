@@ -15,7 +15,7 @@ Telegraph plugin to push metrics on Warp10
 git submodule add -b master https://github.com/cityzendata/telegraf-output-warp10.git plugins/outputs/warp10
 ```
 
-* Add the plugin in the plugin list, you need to add this line to plugins/all/all.go
+* Add the plugin in the plugin list, you need to add this line to plugins/output/all/all.go
 ```
 _ "github.com/influxdata/telegraf/plugins/outputs/warp10"
 ```
