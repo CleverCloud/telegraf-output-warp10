@@ -19,7 +19,7 @@ package warp10
 import (
 	"bytes"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"log"
 	"net/http"
 	"sort"
@@ -68,7 +68,7 @@ func (o *Warp10) Write(metrics []telegraf.Metric) error {
 
 	var out io.Writer = ioutil.Discard
 	if o.Debug {
-	    out = os.Stdout
+		out = os.Stdout
 	}
 
 	if len(metrics) == 0 {
@@ -115,10 +115,10 @@ func (o *Warp10) Write(metrics []telegraf.Metric) error {
 	}
 	defer resp.Body.Close()
 
-	fmt.Fprintf(out,"response Status:", resp.Status)
-	fmt.Fprintf(out,"response Headers:", resp.Header)
+	fmt.Fprintf(out, "response Status:", resp.Status)
+	fmt.Fprintf(out, "response Headers:", resp.Header)
 	body, _ := ioutil.ReadAll(resp.Body)
-	fmt.Fprintf(out,"response Body:", string(body))
+	fmt.Fprintf(out, "response Body:", string(body))
 
 	return nil
 }
