@@ -20,13 +20,13 @@ import (
 	"bytes"
 	"fmt"
 	"io/ioutil"
+	"log"
 	"net/http"
 	"sort"
 	"strconv"
 	"strings"
 	"time"
 
-	"github.com/influxdata/influxdb/client/v2"
 	"github.com/influxdata/telegraf"
 	"github.com/influxdata/telegraf/plugins/outputs"
 )
@@ -43,10 +43,10 @@ type Warp10 struct {
 
 var sampleConfig = `
   # prefix for metrics class Name
-  prefix = "telegraf."
-  ## Telnet Mode ##
+  prefix = "Prefix"
+  ## POST HTTP(or HTTPS) ##
   # Url name of the Warp 10 server
-  warpUrl = "localhost:4242/"
+  warp_url = "WarpUrl"
   # Token to access your app on warp 10
   token = "Token"
   # Debug true - Prints Warp communication
@@ -61,16 +61,20 @@ type MetricLine struct {
 }
 
 func (o *Warp10) Connect() error {
-	// TODO Test Connection to Warp Server
-
 	return nil
 }
 
 func (o *Warp10) Write(metrics []telegraf.Metric) error {
+
+	var out io.Writer = ioutil.Discard
+	if o.Debug {
+	    out = os.Stdout
+	}
+
 	if len(metrics) == 0 {
 		return nil
 	}
-	var timeNow = time.Now()
+	var now = time.Now()
 	collectString := make([]string, 0)
 	index := 0
 	for _, mm := range metrics {
@@ -79,23 +83,20 @@ func (o *Warp10) Write(metrics []telegraf.Metric) error {
 
 			metric := &MetricLine{
 				Metric:    fmt.Sprintf("%s%s", o.Prefix, mm.Name()+"."+k),
-				Timestamp: timeNow.Unix() * 1000000,
+				Timestamp: now.Unix() * 1000000,
 			}
 
-			metricValue, buildError := buildValueFromValue(v)
-			if buildError != nil {
-				fmt.Printf("Warp: %s\n", buildError.Error())
+			metricValue, err := buildValue(v)
+			if err != nil {
+				log.Printf("Warp: %s\n", err.Error())
 				continue
 			}
 			metric.Value = metricValue
 
 			tagsSlice := buildTags(mm.Tags())
-			metric.Tags = fmt.Sprint(strings.Join(tagsSlice, ","))
+			metric.Tags = strings.Join(tagsSlice, ",")
 
-			messageLine := fmt.Sprintf("%v// %s{%s} %v \n", metric.Timestamp, metric.Metric, metric.Tags, metric.Value)
-			if o.Debug {
-				fmt.Print(messageLine)
-			}
+			messageLine := fmt.Sprintf("%d// %s{%s} %s\n", metric.Timestamp, metric.Metric, metric.Tags, metric.Value)
 
 			collectString = append(collectString, messageLine)
 			index += 1
@@ -114,10 +115,10 @@ func (o *Warp10) Write(metrics []telegraf.Metric) error {
 	}
 	defer resp.Body.Close()
 
-	fmt.Println("response Status:", resp.Status)
-	fmt.Println("response Headers:", resp.Header)
+	fmt.Fprintf(out,"response Status:", resp.Status)
+	fmt.Fprintf(out,"response Headers:", resp.Header)
 	body, _ := ioutil.ReadAll(resp.Body)
-	fmt.Println("response Body:", string(body))
+	fmt.Fprintf(out,"response Body:", string(body))
 
 	return nil
 }
@@ -136,30 +137,8 @@ func buildTags(ptTags map[string]string) []string {
 	return tags
 }
 
-func buildValue(pt *client.Point) (string, error) {
+func buildValue(v interface{}) (string, error) {
 	var retv string
-	var v = pt.Fields()["value"]
-	switch p := v.(type) {
-	case int64:
-		retv = IntToString(int64(p))
-	case string:
-		retv = fmt.Sprintf("'%s'", p)
-	case bool:
-		retv = BoolToString(bool(p))
-	case uint64:
-		retv = UIntToString(uint64(p))
-	case float64:
-		retv = FloatToString(float64(p))
-	default:
-		retv = fmt.Sprintf("'%s'", p)
-		//		return retv, fmt.Errorf("unexpected type %T with value %v for Warp", v, v)
-	}
-	return retv, nil
-}
-
-func buildValueFromValue(v interface{}) (string, error) {
-	var retv string
-	//	fmt.Println("%v", pt.Fields())
 	switch p := v.(type) {
 	case int64:
 		retv = IntToString(int64(p))
