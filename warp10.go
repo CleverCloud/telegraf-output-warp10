@@ -19,9 +19,7 @@ package warp10
 import (
 	"bytes"
 	"fmt"
-	"io"
 	"io/ioutil"
-	"log"
 	"net/http"
 	"os"
 	"sort"
@@ -33,14 +31,12 @@ import (
 	"github.com/influxdata/telegraf/plugins/outputs"
 )
 
+// Warp10 plugin options
 type Warp10 struct {
-	Prefix string
-
-	WarpUrl string
-
-	Token string
-
-	Debug bool
+	Prefix  string
+	WarpURL string
+	Token   string
+	Debug   bool
 }
 
 var sampleConfig = `
@@ -48,13 +44,14 @@ var sampleConfig = `
   prefix = "Prefix"
   ## POST HTTP(or HTTPS) ##
   # Url name of the Warp 10 server
-  warp_url = "WarpUrl"
+  warp_url = "WarpURL"
   # Token to access your app on warp 10
   token = "Token"
   # Debug true - Prints Warp communication
   debug = false
 `
 
+// MetricLine is a plain metric
 type MetricLine struct {
 	Metric    string
 	Timestamp int64
@@ -62,13 +59,15 @@ type MetricLine struct {
 	Tags      string
 }
 
+// Connect is a connection initialization to backend
+// Warp10 doesn't have such connection to maintain
 func (o *Warp10) Connect() error {
 	return nil
 }
 
 func (o *Warp10) Write(metrics []telegraf.Metric) error {
 
-	var out io.Writer = ioutil.Discard
+	out := ioutil.Discard
 	if o.Debug {
 		out = os.Stdout
 	}
@@ -76,9 +75,11 @@ func (o *Warp10) Write(metrics []telegraf.Metric) error {
 	if len(metrics) == 0 {
 		return nil
 	}
-	var now = time.Now()
+
+	now := time.Now()
 	collectString := make([]string, 0)
 	index := 0
+
 	for _, mm := range metrics {
 
 		for k, v := range mm.Fields() {
@@ -90,9 +91,9 @@ func (o *Warp10) Write(metrics []telegraf.Metric) error {
 
 			metricValue, err := buildValue(v)
 			if err != nil {
-				log.Printf("Warp: %s\n", err.Error())
-				continue
+				return err
 			}
+
 			metric.Value = metricValue
 
 			tagsSlice := buildTags(mm.Tags())
@@ -101,25 +102,42 @@ func (o *Warp10) Write(metrics []telegraf.Metric) error {
 			messageLine := fmt.Sprintf("%d// %s{%s} %s\n", metric.Timestamp, metric.Metric, metric.Tags, metric.Value)
 
 			collectString = append(collectString, messageLine)
-			index += 1
+			index++
 		}
 	}
+
 	payload := fmt.Sprint(strings.Join(collectString, "\n"))
-	//defer connection.Close()
-	req, err := http.NewRequest("POST", o.WarpUrl, bytes.NewBufferString(payload))
+	req, err := http.NewRequest("POST", o.WarpURL, bytes.NewBufferString(payload))
+	if err != nil {
+		return err
+	}
+
 	req.Header.Set("X-Warp10-Token", o.Token)
 	req.Header.Set("Content-Type", "text/plain")
 
-	client := &http.Client{}
-	resp, err := client.Do(req)
+	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
-		panic(err)
+		return err
 	}
-	defer resp.Body.Close()
+	defer func() {
+		err := resp.Body.Close()
+		if err != nil {
+			fmt.Fprintf(out, "Failed to close Warp10 response body: %v", err.Error())
+		}
+	}()
 
 	fmt.Fprintf(out, "response Status: %#v", resp.Status)
 	fmt.Fprintf(out, "response Headers: %#v", resp.Header)
-	body, _ := ioutil.ReadAll(resp.Body)
+
+	body, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		fmt.Fprintf(out, "Failed to read Warp10 response body: %v", err.Error())
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("Failed to push data into Warp10: %v", string(body))
+	}
+
 	fmt.Fprintf(out, "response Body: %#v", string(body))
 
 	return nil
@@ -127,12 +145,12 @@ func (o *Warp10) Write(metrics []telegraf.Metric) error {
 
 func buildTags(ptTags map[string]string) []string {
 	sizeTags := len(ptTags)
-	sizeTags += 1
+	sizeTags++
 	tags := make([]string, sizeTags)
 	index := 0
 	for k, v := range ptTags {
 		tags[index] = fmt.Sprintf("%s=%s", k, v)
-		index += 1
+		index++
 	}
 	tags[index] = fmt.Sprintf("source=telegraf")
 	sort.Strings(tags)
@@ -159,30 +177,38 @@ func buildValue(v interface{}) (string, error) {
 	return retv, nil
 }
 
-func IntToString(input_num int64) string {
-	return strconv.FormatInt(input_num, 10)
+// IntToString convert int64 into string
+func IntToString(inputNum int64) string {
+	return strconv.FormatInt(inputNum, 10)
 }
 
-func BoolToString(input_bool bool) string {
-	return strconv.FormatBool(input_bool)
+// BoolToString convert bool into string
+func BoolToString(inputBool bool) string {
+	return strconv.FormatBool(inputBool)
 }
 
-func UIntToString(input_num uint64) string {
-	return strconv.FormatUint(input_num, 10)
+// UIntToString convert uint64 into string
+func UIntToString(inputNum uint64) string {
+	return strconv.FormatUint(inputNum, 10)
 }
 
-func FloatToString(input_num float64) string {
-	return strconv.FormatFloat(input_num, 'f', 6, 64)
+// FloatToString convert float64 into string
+func FloatToString(inputNum float64) string {
+	return strconv.FormatFloat(inputNum, 'f', 6, 64)
 }
 
+// SampleConfig return a config example
 func (o *Warp10) SampleConfig() string {
 	return sampleConfig
 }
 
+// Description return plugin description
 func (o *Warp10) Description() string {
 	return "Configuration for Warp server to send metrics to"
 }
 
+// Close backend connection
+// Warp10 doesn't have such connection to maintain
 func (o *Warp10) Close() error {
 	// Basically nothing to do for Warp10 here
 	return nil
