@@ -12,7 +12,7 @@ Telegraph plugin to push metrics on Warp10
 
 * In the telegraf main dir, add this plugin as git submodule
 ```
-git submodule add -b master https://github.com/cityzendata/telegraf-output-warp10.git plugins/outputs/warp10
+git submodule add -b master https://github.com/clevercloud/telegraf-output-warp10.git plugins/outputs/warp10
 ```
 
 * Add the plugin in the plugin list, you need to add this line to plugins/output/all/all.go
@@ -26,7 +26,7 @@ _ "github.com/influxdata/telegraf/plugins/outputs/warp10"
 
 ```
 [[outputs.warp10]]
-warpUrl = "https://warp1.cityzendata.net/api/v0/update"
+warpUrl = "https://warp.senx.io/api/v0/update"
 token = "token"
 prefix = "telegraf."
 debug = false
@@ -35,4 +35,4 @@ debug = false
 
 ### Contact ###
 
-* contact@cityzendata.com
+* contact@clever-cloud.com
