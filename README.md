@@ -26,7 +26,7 @@ _ "github.com/influxdata/telegraf/plugins/outputs/warp10"
 
 ```
 [[outputs.warp10]]
-warpUrl = "https://warp.senx.io/api/v0/update"
+warpUrl = "http://127.0.0.1:8080/api/v0/update"
 token = "token"
 prefix = "telegraf."
 debug = false
